@@ -2,6 +2,9 @@
 # https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
 #
 # Binaries for programs and plugins
+sc
+*.swo
+*.swp
 *.exe
 *.exe~
 *.dll
