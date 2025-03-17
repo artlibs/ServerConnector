@@ -21,3 +21,19 @@ $ sudo make uninstall
 sc removed from your system :)
 ```
 
+### sample
+
+```shell
+$ sc
+Usage:
+  sc    [command]     Connect with normal user
+  sc -a [command]     Connect with admin user
+
+Commands:
+
+ dev        31.*.*.162      Aliyun devp server
+ prod       114.*.61.*      Aliyun prod server
+
+$
+```
+

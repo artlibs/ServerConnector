@@ -6,7 +6,13 @@ import (
 	"golang.org/x/term"
 	"gopkg.in/ini.v1"
 	"log"
+	"math/rand"
 	"os"
+	"os/signal"
+	"sort"
+	"strings"
+	"syscall"
+	"time"
 )
 
 const configFile = "/etc/sc/config.ini"
@@ -48,6 +54,15 @@ func loadConfig() (map[string]SSHConfig, error) {
 	return sshConfigs, nil
 }
 
+// set raw mode
+func setRawMode(fd int) (*term.State, error) {
+	oldState, err := term.MakeRaw(fd)
+	if err != nil {
+		return nil, err
+	}
+	return oldState, nil
+}
+
 // Connect SSH
 func connectSSH(host, port, user, password string) {
 	config := &ssh.ClientConfig{
@@ -63,6 +78,7 @@ func connectSSH(host, port, user, password string) {
 				return answers, nil
 			}),
 		},
+		//HostKeyCallback: ssh.FixedHostKey(),
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	}
 
@@ -73,7 +89,7 @@ func connectSSH(host, port, user, password string) {
 	}
 	defer client.Close()
 
-	// new Shell session
+	// New Shell session
 	session, err := client.NewSession()
 	if err != nil {
 		log.Fatalf("Can't create SSH session: %v", err)
@@ -84,36 +100,79 @@ func connectSSH(host, port, user, password string) {
 	session.Stderr = os.Stderr
 	session.Stdin = os.Stdin
 
-	// terminal setting
+	// Terminal setting
 	modes := ssh.TerminalModes{
-		ssh.ECHO:          0,     // disable echoing
+		ssh.ECHO:          1,     // enable echoing
 		ssh.TTY_OP_ISPEED: 14400, // input speed = 14.4kbaud
 		ssh.TTY_OP_OSPEED: 14400, // output speed = 14.4kbaud
 	}
 
 	termWidth, termHeight, err := term.GetSize(int(os.Stdout.Fd()))
 	if err != nil {
-		log.Fatal("unable to terminal.GetSize: ", err)
+		log.Fatal("unable to terminal.GetSize: %v", err)
 	}
-
-	// connect terminal with session
+	// Connect terminal with session
 	if err := session.RequestPty("xterm-256color", termHeight, termWidth, modes); err != nil {
-		log.Fatal("request for pseudo terminal failed: ", err)
+		log.Fatal("request for pseudo terminal failed: %v", err)
 	}
 
-	// // Set the custom prompt (e.g., using PS1 variable)
-	// customPrompt := `export PS1="[\u@\h \W]$ "`
-	// // Run the custom prompt setting and the shell
-	// err = session.Run(fmt.Sprintf("bash -c '%s; exec bash'", customPrompt))
+	// Support TAB auto completion
+	oldState, err := setRawMode(int(os.Stdin.Fd()))
+	if err != nil {
+		fmt.Println("Failed to set raw mode:", err)
+		return
+	}
+	defer term.Restore(int(os.Stdin.Fd()), oldState)
+
+	// Handle CTRL+C
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigs
+		term.Restore(int(os.Stdin.Fd()), oldState)
+		os.Exit(0)
+	}()
+
+	// Open remote shell
 	err = session.Shell()
 	if err != nil {
 		log.Fatalf("Can't open remote shell: %v", err)
+		return
 	}
 
 	// Wait for ending
 	if err := session.Wait(); err != nil {
-		log.Fatal("exit error: ", err)
+		log.Fatal("exit error: %v", err)
 	}
+}
+
+func maskIP(ip string) string {
+	parts := strings.Split(ip, ".")
+	if len(parts) != 4 {
+		return ip
+	}
+
+	type segment struct {
+		index  int
+		length int
+	}
+	segments := []segment{
+		{1, len(parts[1])},
+		{2, len(parts[2])},
+		{3, len(parts[3])},
+	}
+
+	sort.Slice(segments, func(i, j int) bool {
+		return segments[i].length > segments[j].length
+	})
+
+	rand.Seed(time.Now().UnixNano())
+	selected := segments[:2]
+	for _, s := range selected {
+		parts[s.index] = "*"
+	}
+
+	return strings.Join(parts, ".")
 }
 
 func main() {
@@ -125,13 +184,13 @@ func main() {
 
 	if len(os.Args) < 2 {
 		fmt.Println("Usage:")
-		fmt.Println("  sc    <section>     Connect with normal user")
-		fmt.Println("  sc -a <section>     Connect with admin user")
+		fmt.Println("  sc    [command]     Connect with normal user")
+		fmt.Println("  sc -a [command]     Connect with admin user")
 		fmt.Println("")
-		fmt.Println("<section>")
+		fmt.Println("Commands:")
 		fmt.Println("")
 		for name, config := range sshConfigs {
-			fmt.Printf(" %-10s %-15s %s\n", name, config.Host, config.Desc)
+			fmt.Printf(" %-10s %-15s %s\n", name, maskIP(config.Host), config.Desc)
 		}
 		fmt.Println("")
 		os.Exit(1)
