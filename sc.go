@@ -434,82 +434,69 @@ func encryptConfigPasswords() error {
 }
 
 func main() {
-	// 检查加密命令
-	if len(os.Args) >= 2 && os.Args[1] == "--encrypt-config" {
-		if err := encryptConfigPasswords(); err != nil {
-			log.Fatalf("Failed to encrypt config: %v", err)
-		}
-		return
-	}
+    // 检查加密命令
+    if len(os.Args) >= 2 && os.Args[1] == "--encrypt-config" {
+        if err := encryptConfigPasswords(); err != nil {
+            log.Fatalf("Failed to encrypt config: %v", err)
+        }
+        return
+    }
 
-	// 加载配置
-	config, err := loadConfig()
-	if err != nil {
-		log.Fatalf("Failed to load config: %v", err)
-	}
+    // 加载配置
+    config, err := loadConfig()
+    if err != nil {
+        log.Fatalf("Failed to load config: %v", err)
+    }
 
-	if len(os.Args) < 2 {
-		fmt.Println("Usage:")
-		fmt.Println("  sc    [command]       Connect with normal user")
-		fmt.Println("  sc -a [command]       Connect with admin user")
-		fmt.Println("  sc --encrypt-config   Encrypt passwords in config file")
-		fmt.Println("")
-		fmt.Println("Available commands:")
-		fmt.Println("")
-		for name, server := range config.Servers {
-			fmt.Printf(" %-10s %-15s %s\n", name, maskIP(server.Host), server.Desc)
-		}
-		fmt.Println("")
-		os.Exit(1)
-	}
+    if len(os.Args) < 2 {
+        fmt.Println("Usage:")
+        fmt.Println("  sc [command]           Connect with normal user")
+        fmt.Println("  sc [command] x         Connect with admin user")
+        fmt.Println("  sc --encrypt-config    Encrypt passwords in config file")
+        fmt.Println("")
+        fmt.Println("Available commands:")
+        fmt.Println("")
+        for name, server := range config.Servers {
+            fmt.Printf(" %-10s %-15s %s\n", name, maskIP(server.Host), server.Desc)
+        }
+        fmt.Println("")
+        os.Exit(1)
+    }
 
-	// 处理命令
-	switch os.Args[1] {
-	case "--encrypt-config":
-		if err := encryptConfigPasswords(); err != nil {
-			log.Fatalf("Failed to encrypt config: %v", err)
-		}
-	case "-a":
-		if len(os.Args) < 3 {
-			fmt.Println("Usage: sc -a <section>")
-			os.Exit(1)
-		}
-		section := os.Args[2]
-		serverConfig, exists := config.Servers[section]
-		if !exists {
-			fmt.Printf("Error: SSH config '%s' not found\n", section)
-			os.Exit(1)
-		}
-		fmt.Printf("Connecting with admin user %s to %s:%s...\n", serverConfig.Admin, serverConfig.Host, serverConfig.Port)
+    section := os.Args[1]
+    serverConfig, exists := config.Servers[section]
+    if !exists {
+        fmt.Printf("Error: SSH config '%s' not found\n", section)
+        os.Exit(1)
+    }
 
-		// 传递额外的SSH参数
-		var sshOptions []string
-		if len(os.Args) > 3 {
-			sshOptions = os.Args[3:]
-		}
+    // 检查是否为管理员模式
+    isAdmin := len(os.Args) > 2 && os.Args[2] == "x"
+    
+    // 传递额外的SSH参数
+    var sshOptions []string
+    if len(os.Args) > 2 {
+        // 如果第三个参数是 "x"，则忽略它，只传递之后的参数
+        if isAdmin && len(os.Args) > 3 {
+            sshOptions = os.Args[3:]
+        } else if !isAdmin {
+            sshOptions = os.Args[2:]
+        }
+    }
 
-		err = connectSSH(serverConfig.Host, serverConfig.Port, serverConfig.Admin, serverConfig, true, sshOptions, config)
-		if err != nil {
-			log.Fatalf("SSH connection failed: %v", err)
-		}
-	default:
-		section := os.Args[1]
-		serverConfig, exists := config.Servers[section]
-		if !exists {
-			fmt.Printf("Error: SSH config '%s' not found\n", section)
-			os.Exit(1)
-		}
-		fmt.Printf("Connecting with user %s to %s:%s...\n", serverConfig.User, serverConfig.Host, serverConfig.Port)
-
-		// 传递额外的SSH参数
-		var sshOptions []string
-		if len(os.Args) > 2 {
-			sshOptions = os.Args[2:]
-		}
-
-		err = connectSSH(serverConfig.Host, serverConfig.Port, serverConfig.User, serverConfig, false, sshOptions, config)
-		if err != nil {
-			log.Fatalf("SSH connection failed: %v", err)
-		}
-	}
+    if isAdmin {
+        fmt.Printf("Connecting with admin user %s to %s:%s...\n", 
+            serverConfig.Admin, serverConfig.Host, serverConfig.Port)
+        err = connectSSH(serverConfig.Host, serverConfig.Port, serverConfig.Admin, 
+            serverConfig, true, sshOptions, config)
+    } else {
+        fmt.Printf("Connecting with user %s to %s:%s...\n", 
+            serverConfig.User, serverConfig.Host, serverConfig.Port)
+        err = connectSSH(serverConfig.Host, serverConfig.Port, serverConfig.User, 
+            serverConfig, false, sshOptions, config)
+    }
+    
+    if err != nil {
+        log.Fatalf("SSH connection failed: %v", err)
+    }
 }
