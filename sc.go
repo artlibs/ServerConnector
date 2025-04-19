@@ -349,32 +349,32 @@ func connectSSH(host, port, user string, serverConfig SSHConfig, isAdmin bool, s
 }
 
 func maskIP(ip string) string {
-    parts := strings.Split(ip, ".")
-    if len(parts) != 4 {
-        return ip
-    }
+	parts := strings.Split(ip, ".")
+	if len(parts) != 4 {
+		return ip
+	}
 
-    type segment struct {
-        index  int
-        length int
-    }
-    segments := []segment{
-        {1, len(parts[1])},
-        {2, len(parts[2])},
-        {3, len(parts[3])},
-    }
+	type segment struct {
+		index  int
+		length int
+	}
+	segments := []segment{
+		{1, len(parts[1])},
+		{2, len(parts[2])},
+		{3, len(parts[3])},
+	}
 
-    sort.Slice(segments, func(i, j int) bool {
-        return segments[i].length > segments[j].length
-    })
+	sort.Slice(segments, func(i, j int) bool {
+		return segments[i].length > segments[j].length
+	})
 
-    // 直接使用前两个最长的段落，不需要随机选择
-    selected := segments[:2]
-    for _, s := range selected {
-        parts[s.index] = "*"
-    }
+	// 直接使用前两个最长的段落，不需要随机选择
+	selected := segments[:2]
+	for _, s := range selected {
+		parts[s.index] = "*"
+	}
 
-    return strings.Join(parts, ".")
+	return strings.Join(parts, ".")
 }
 
 // 用于加密配置中的密码的辅助命令
@@ -434,69 +434,69 @@ func encryptConfigPasswords() error {
 }
 
 func main() {
-    // 检查加密命令
-    if len(os.Args) >= 2 && os.Args[1] == "--encrypt-config" {
-        if err := encryptConfigPasswords(); err != nil {
-            log.Fatalf("Failed to encrypt config: %v", err)
-        }
-        return
-    }
+	// 检查加密命令
+	if len(os.Args) >= 2 && os.Args[1] == "--encrypt-config" {
+		if err := encryptConfigPasswords(); err != nil {
+			log.Fatalf("Failed to encrypt config: %v", err)
+		}
+		return
+	}
 
-    // 加载配置
-    config, err := loadConfig()
-    if err != nil {
-        log.Fatalf("Failed to load config: %v", err)
-    }
+	// 加载配置
+	config, err := loadConfig()
+	if err != nil {
+		log.Fatalf("Failed to load config: %v", err)
+	}
 
-    if len(os.Args) < 2 {
-        fmt.Println("Usage:")
-        fmt.Println("  sc [command]           Connect with normal user")
-        fmt.Println("  sc [command] x         Connect with admin user")
-        fmt.Println("  sc --encrypt-config    Encrypt passwords in config file")
-        fmt.Println("")
-        fmt.Println("Available commands:")
-        fmt.Println("")
-        for name, server := range config.Servers {
-            fmt.Printf(" %-10s %-15s %s\n", name, maskIP(server.Host), server.Desc)
-        }
-        fmt.Println("")
-        os.Exit(1)
-    }
+	if len(os.Args) < 2 {
+		fmt.Println("Usage:")
+		fmt.Println("  sc [command]           Connect with normal user")
+		fmt.Println("  sc [command] x         Connect with admin user")
+		fmt.Println("  sc --encrypt-config    Encrypt passwords in config file")
+		fmt.Println("")
+		fmt.Println("Available commands:")
+		fmt.Println("")
+		for name, server := range config.Servers {
+			fmt.Printf("  %-10s %-20s %s\n", name, maskIP(server.Host), server.Desc)
+		}
+		fmt.Println("")
+		os.Exit(1)
+	}
 
-    section := os.Args[1]
-    serverConfig, exists := config.Servers[section]
-    if !exists {
-        fmt.Printf("Error: SSH config '%s' not found\n", section)
-        os.Exit(1)
-    }
+	section := os.Args[1]
+	serverConfig, exists := config.Servers[section]
+	if !exists {
+		fmt.Printf("Error: SSH config '%s' not found\n", section)
+		os.Exit(1)
+	}
 
-    // 检查是否为管理员模式
-    isAdmin := len(os.Args) > 2 && os.Args[2] == "x"
-    
-    // 传递额外的SSH参数
-    var sshOptions []string
-    if len(os.Args) > 2 {
-        // 如果第三个参数是 "x"，则忽略它，只传递之后的参数
-        if isAdmin && len(os.Args) > 3 {
-            sshOptions = os.Args[3:]
-        } else if !isAdmin {
-            sshOptions = os.Args[2:]
-        }
-    }
+	// 检查是否为管理员模式
+	isAdmin := len(os.Args) > 2 && os.Args[2] == "x"
 
-    if isAdmin {
-        fmt.Printf("Connecting with admin user %s to %s:%s...\n", 
-            serverConfig.Admin, serverConfig.Host, serverConfig.Port)
-        err = connectSSH(serverConfig.Host, serverConfig.Port, serverConfig.Admin, 
-            serverConfig, true, sshOptions, config)
-    } else {
-        fmt.Printf("Connecting with user %s to %s:%s...\n", 
-            serverConfig.User, serverConfig.Host, serverConfig.Port)
-        err = connectSSH(serverConfig.Host, serverConfig.Port, serverConfig.User, 
-            serverConfig, false, sshOptions, config)
-    }
-    
-    if err != nil {
-        log.Fatalf("SSH connection failed: %v", err)
-    }
+	// 传递额外的SSH参数
+	var sshOptions []string
+	if len(os.Args) > 2 {
+		// 如果第三个参数是 "x"，则忽略它，只传递之后的参数
+		if isAdmin && len(os.Args) > 3 {
+			sshOptions = os.Args[3:]
+		} else if !isAdmin {
+			sshOptions = os.Args[2:]
+		}
+	}
+
+	if isAdmin {
+		fmt.Printf("Connecting with admin user %s to %s:%s...\n",
+			serverConfig.Admin, serverConfig.Host, serverConfig.Port)
+		err = connectSSH(serverConfig.Host, serverConfig.Port, serverConfig.Admin,
+			serverConfig, true, sshOptions, config)
+	} else {
+		fmt.Printf("Connecting with user %s to %s:%s...\n",
+			serverConfig.User, serverConfig.Host, serverConfig.Port)
+		err = connectSSH(serverConfig.Host, serverConfig.Port, serverConfig.User,
+			serverConfig, false, sshOptions, config)
+	}
+
+	if err != nil {
+		log.Fatalf("SSH connection failed: %v", err)
+	}
 }

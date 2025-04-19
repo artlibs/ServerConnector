@@ -19,6 +19,8 @@ sc
 
 # Dependency directories (remove the comment below to include it)
 # vendor/
+go.mod
+go.sum
 
 # Go workspace file
 go.work
