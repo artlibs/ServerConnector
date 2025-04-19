@@ -1,0 +1,39 @@
+# SSH客户端全局配置 
+ssh_path: /usr/bin/ssh
+sshpass_path: /usr/local/bin/sshpass
+
+# 服务器配置
+servers:
+  web1:
+    host: "192.168.1.100"
+    port: "22"
+    user: "webuser"
+    # 以下是加密后的密码 - 使用 sc --encrypt-config 生成
+    pass: "4tGMSVgJMDXp9eE9UHFvNRyHnbm0u5kJ1vCxzg=="
+    admin: "root"
+    spass: "pLkN3wRm52jE+MN9UufvCVhbOD2nM5RKvwQ7tg=="
+    # 认证方式: key (SSH密钥), password (存储密码), ask (询问密码)
+    auth_method: "key"
+    # SSH密钥文件 (相对于~/.ssh/或绝对路径)
+    key_file: "id_rsa_web"
+    admin_key_file: "id_rsa_admin"
+    desc: "Web服务器1"
+  
+  db1:
+    host: "192.168.1.101"
+    port: "2222"
+    user: "dbuser"
+    # 使用密码认证
+    auth_method: "password"
+    pass: "5hJKLVheQ7Np0eE0UwpvNRuUnbf9u4iJ1vCxzg=="
+    admin: "root"
+    spass: "aPGSuVglPgn52jE+MN9UufvCVhbnD2p40RKvwQ=="
+    desc: "数据库服务器1"
+  
+  test:
+    host: "192.168.1.102"
+    user: "testuser"
+    # 每次都询问密码
+    auth_method: "ask"
+    admin: "root"
+    desc: "测试服务器"
