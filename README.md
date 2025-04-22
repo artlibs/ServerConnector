@@ -10,8 +10,10 @@ sc - Just a SSH server connector command
 ### install
 
 ```shell
-$ sudo make install
-sc installed to /usr/local/bin/sc with config /etc/sc/config.ini. Enjoy :)
+$ make install
+Installing sc...
+Creating default gitconfig...
+Done. Edit /etc/sc/config.yml to configure.
 ```
 
 ### uninstall
@@ -28,12 +30,19 @@ $ sc
 Usage:
   sc [command]           Connect with normal user
   sc [command] x         Connect with admin user
-  sc --encrypt-config    Encrypt passwords in config file
+  sc [environ] e         Switch to [environ] git & ssh config
+  sc --encrypt-config    Encrypt passwords in config.yml file
 
 Available commands:
 
  dev        32.*.*.161      Aliyun devp server
  pro        115.*.60.*      Aliyun prod server
+
+Available environments:
+
+  Current: f
+  * pro          My production env
+    dev          My developement env
 
 $
 ```

@@ -13,7 +13,7 @@ build:
 install: build
 	@echo "Installing sc..."
 	@mkdir -p /usr/local/bin
-	@cp sc /usr/local/bin/
+	@mv sc /usr/local/bin/
 	@chmod +x /usr/local/bin/sc
 	@mkdir -p /etc/sc
 	@if [ ! -f /etc/sc/config.yml ]; then \
@@ -47,8 +47,7 @@ install: build
 		echo "	name = Default User" >> /etc/sc/gitconfig.default; \
 		echo "	email = default@example.com" >> /etc/sc/gitconfig.default; \
 	fi
-	@echo "Installation complete"
-	@echo "Edit /etc/sc/config.yml to configure."
+	@echo "Done. Edit /etc/sc/config.yml to configure."
 
 uninstall:
 	@rm -f ${BIN_PATH}

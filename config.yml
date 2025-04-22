@@ -6,9 +6,9 @@ environments:
   current: "default"
   envs:
     f:
-      ssh_home: ~/.ssh
-      git_config: ~/.gitconfig
-      desc: "前端开发环境配置" 
+      ssh_home: /User/home/.ssh
+      git_config: /User/home/.gitconfig
+      desc: "开发环境配置" 
 
 # 服务器配置
 servers:
