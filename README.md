@@ -26,13 +26,14 @@ sc removed from your system :)
 ```shell
 $ sc
 Usage:
-  sc    [command]     Connect with normal user
-  sc -a [command]     Connect with admin user
+  sc [command]           Connect with normal user
+  sc [command] x         Connect with admin user
+  sc --encrypt-config    Encrypt passwords in config file
 
-Commands:
+Available commands:
 
- dev        31.*.*.162      Aliyun devp server
- prod       114.*.61.*      Aliyun prod server
+ dev        32.*.*.161      Aliyun devp server
+ pro        115.*.60.*      Aliyun prod server
 
 $
 ```
