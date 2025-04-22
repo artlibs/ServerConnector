@@ -2,6 +2,14 @@
 ssh_path: /usr/bin/ssh
 sshpass_path: /usr/local/bin/sshpass
 
+environments:
+  current: "default"
+  envs:
+    f:
+      ssh_home: ~/.ssh
+      git_config: ~/.gitconfig
+      desc: "前端开发环境配置" 
+
 # 服务器配置
 servers:
   web1:

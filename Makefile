@@ -11,27 +11,44 @@ build:
 	@go build -o $(APP_NAME) $(APP_NAME).go
 
 install: build
-	@mkdir -p $(CONFIG_DIR)
-	@mv -f $(APP_NAME) $(BIN_PATH)
-	@chmod +x $(BIN_PATH)
-	@if [ ! -f $(CONFIG_FILE) ]; then \
-		echo "ssh_path: /usr/bin/ssh" >> $(CONFIG_FILE); \
-		echo "sshpass_path: /usr/local/bin/sshpass" >> $(CONFIG_FILE); \
-		echo "servers:" >> $(CONFIG_FILE); \
-		echo "  db1:" >> $(CONFIG_FILE); \
-		echo "    port: 22" >> $(CONFIG_FILE); \
-		echo "    host: 192.168.3.5" >> $(CONFIG_FILE); \
-		echo "    user: ecs-user" >> $(CONFIG_FILE); \
-		echo "    pass: 1234567890" >> $(CONFIG_FILE); \
-		echo "    admin: root" >> $(CONFIG_FILE); \
-		echo "    spass: 1234567890" >> $(CONFIG_FILE); \
-		echo "    auth_method: key" >> $(CONFIG_FILE); \
-		echo "    key_file: id_rsa_db1" >> $(CONFIG_FILE); \
-		echo "    admin_key_file: id_rsa_admin" >> $(CONFIG_FILE); \
-		echo "    desc: this is a description" >> $(CONFIG_FILE); \
+	@echo "Installing sc..."
+	@mkdir -p /usr/local/bin
+	@cp sc /usr/local/bin/
+	@chmod +x /usr/local/bin/sc
+	@mkdir -p /etc/sc
+	@if [ ! -f /etc/sc/config.yml ]; then \
+		echo "Creating default config.yml..."; \
+		echo "# SSH客户端全局配置" > /etc/sc/config.yml; \
+		echo "ssh_path: /usr/bin/ssh" >> /etc/sc/config.yml; \
+		echo "sshpass_path: /usr/local/bin/sshpass" >> /etc/sc/config.yml; \
+		echo "" >> /etc/sc/config.yml; \
+		echo "# 服务器配置" >> /etc/sc/config.yml; \
+		echo "servers:" >> /etc/sc/config.yml; \
+		echo "  example:" >> /etc/sc/config.yml; \
+		echo "    host: \"192.168.1.100\"" >> /etc/sc/config.yml; \
+		echo "    port: \"22\"" >> /etc/sc/config.yml; \
+		echo "    user: \"user\"" >> /etc/sc/config.yml; \
+		echo "    auth_method: \"ask\"" >> /etc/sc/config.yml; \
+		echo "    admin: \"root\"" >> /etc/sc/config.yml; \
+		echo "    desc: \"Example Server\"" >> /etc/sc/config.yml; \
+		echo "" >> /etc/sc/config.yml; \
+		echo "# 环境配置" >> /etc/sc/config.yml; \
+		echo "environments:" >> /etc/sc/config.yml; \
+		echo "  current: \"default\"" >> /etc/sc/config.yml; \
+		echo "  default:" >> /etc/sc/config.yml; \
+		echo "    ssh_home: \"~/.ssh\"" >> /etc/sc/config.yml; \
+		echo "    git_config: \"~/.gitconfig\"" >> /etc/sc/config.yml; \
+		echo "    desc: \"默认开发环境\"" >> /etc/sc/config.yml; \
 	fi
-	@rm -f $(APP_NAME)
-	@echo 'sc installed to ${BIN_PATH} with config ${CONFIG_FILE}. Enjoy :)'
+	@mkdir -p /etc/sc/ssh.default
+	@if [ ! -f /etc/sc/gitconfig.default ]; then \
+		echo "Creating default gitconfig..."; \
+		echo "[user]" > /etc/sc/gitconfig.default; \
+		echo "	name = Default User" >> /etc/sc/gitconfig.default; \
+		echo "	email = default@example.com" >> /etc/sc/gitconfig.default; \
+	fi
+	@echo "Installation complete"
+	@echo "Edit /etc/sc/config.yml to configure."
 
 uninstall:
 	@rm -f ${BIN_PATH}

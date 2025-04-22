@@ -27,11 +27,22 @@ const (
 	keyFile    = "/etc/sc/.key" // 加密密钥文件，应当有严格权限控制
 )
 
+// 环境配置结构
+type EnvConfig struct {
+	SSHHome   string `yaml:"ssh_home"`
+	GitConfig string `yaml:"git_config"`
+	Desc      string `yaml:"desc"`
+}
+
 // 全局配置结构
 type Config struct {
-	SSHPath     string               `yaml:"ssh_path"`
-	SSHPassPath string               `yaml:"sshpass_path"`
-	Servers     map[string]SSHConfig `yaml:"servers"`
+	SSHPath      string               `yaml:"ssh_path"`
+	SSHPassPath  string               `yaml:"sshpass_path"`
+	Servers      map[string]SSHConfig `yaml:"servers"`
+	Environments struct {
+		Current string               `yaml:"current"`
+		Envs    map[string]EnvConfig `yaml:"envs"`
+	} `yaml:"environments"`
 }
 
 // 单个服务器配置
@@ -433,6 +444,179 @@ func encryptConfigPasswords() error {
 	return nil
 }
 
+// 实现环境切换的主函数
+func switchEnvironment(envName string, config *Config) error {
+	// 获取当前环境
+	currentEnv := config.Environments.Current
+	if currentEnv == "" {
+		currentEnv = "default"
+	}
+
+	// 获取新环境配置
+	newEnvConfig, exists := config.Environments.Envs[envName]
+	if !exists {
+		return fmt.Errorf("Environment '%s' not defined in config", envName)
+	}
+
+	// 展开路径中的波浪号
+	sshHome := newEnvConfig.SSHHome
+	gitConfig := newEnvConfig.GitConfig
+
+	// 备份当前配置
+	if err := backupCurrentConfig(sshHome, gitConfig, currentEnv); err != nil {
+		return err
+	}
+
+	// 检查新环境配置文件是否存在
+	sshSrc := filepath.Join("/etc/sc", "ssh."+envName)
+	gitSrc := filepath.Join("/etc/sc", "gitconfig."+envName)
+
+	if !fileExists(sshSrc) || !fileExists(gitSrc) {
+		// 回滚并退出
+		if err := restoreFromBackup(sshHome, gitConfig, currentEnv); err != nil {
+			fmt.Printf("Warning: Failed to restore backup: %v\n", err)
+		}
+		return fmt.Errorf("Missing required environment files: ssh.%s or gitconfig.%s", envName, envName)
+	}
+
+	// 复制新环境配置到目标位置
+	if err := os.RemoveAll(sshHome); err != nil {
+		return fmt.Errorf("Failed to remove existing SSH config: %v", err)
+	}
+
+	if err := copyDir(sshSrc, sshHome); err != nil {
+		return fmt.Errorf("Failed to copy SSH config: %v", err)
+	}
+
+	if err := copyFile(gitSrc, gitConfig); err != nil {
+		return fmt.Errorf("Failed to copy Git config: %v", err)
+	}
+
+	// 更新当前环境
+	config.Environments.Current = envName
+	if err := saveConfig(config); err != nil {
+		return fmt.Errorf("Failed to update current environment: %v", err)
+	}
+	fmt.Printf("switched to env: %s\n", envName)
+
+	return nil
+}
+
+// 备份当前配置
+func backupCurrentConfig(sshHome, gitConfig, currentEnv string) error {
+	knownHostsPath := filepath.Join(sshHome, "known_hosts")
+	knownHostsBackup := filepath.Join("/etc/sc/"+"ssh."+currentEnv, "known_hosts")
+
+	if fileExists(knownHostsPath) {
+		if err := copyFile(knownHostsPath, knownHostsBackup); err != nil {
+			return fmt.Errorf("Failed to backup known_hosts: %v", err)
+		}
+	}
+
+	return nil
+}
+
+// 从备份恢复
+func restoreFromBackup(sshHome, gitConfig, currentEnv string) error {
+	sshBackup := filepath.Join("/etc/sc", "ssh."+currentEnv)
+	gitBackup := filepath.Join("/etc/sc", "gitconfig."+currentEnv)
+
+	if fileExists(sshBackup) {
+		if err := os.RemoveAll(sshHome); err != nil {
+			return err
+		}
+		if err := copyDir(sshBackup, sshHome); err != nil {
+			return err
+		}
+	}
+
+	if fileExists(gitBackup) {
+		if err := copyFile(gitBackup, gitConfig); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// 保存配置
+func saveConfig(config *Config) error {
+	data, err := yaml.Marshal(config)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(configFile, data, 0600)
+}
+
+// 辅助函数：展开路径中的波浪号
+func expandPath(path string) string {
+	if !strings.HasPrefix(path, "~/") {
+		return path
+	}
+
+	currentUser, err := user.Current()
+	if err != nil {
+		return path
+	}
+
+	return filepath.Join(currentUser.HomeDir, path[2:])
+}
+
+// 复制目录
+func copyDir(src, dst string) error {
+	// 创建目标目录
+	if err := os.MkdirAll(dst, 0755); err != nil {
+		return err
+	}
+
+	// 获取源目录中的文件和子目录
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		return err
+	}
+
+	for _, entry := range entries {
+		srcPath := filepath.Join(src, entry.Name())
+		dstPath := filepath.Join(dst, entry.Name())
+
+		if entry.IsDir() {
+			if err := copyDir(srcPath, dstPath); err != nil {
+				return err
+			}
+		} else {
+			if err := copyFile(srcPath, dstPath); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// 复制文件
+func copyFile(src, dst string) error {
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer srcFile.Close()
+
+	// 获取源文件信息以保留权限
+	srcInfo, err := srcFile.Stat()
+	if err != nil {
+		return err
+	}
+
+	dstFile, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, srcInfo.Mode())
+	if err != nil {
+		return err
+	}
+	defer dstFile.Close()
+
+	_, err = io.Copy(dstFile, srcFile)
+	return err
+}
+
 func main() {
 	// 检查加密命令
 	if len(os.Args) >= 2 && os.Args[1] == "--encrypt-config" {
@@ -452,6 +636,7 @@ func main() {
 		fmt.Println("Usage:")
 		fmt.Println("  sc [command]           Connect with normal user")
 		fmt.Println("  sc [command] x         Connect with admin user")
+		fmt.Println("  sc [environ] e         Switch to env [environ]")
 		fmt.Println("  sc --encrypt-config    Encrypt passwords in config file")
 		fmt.Println("")
 		fmt.Println("Available commands:")
@@ -460,7 +645,46 @@ func main() {
 			fmt.Printf("  %-10s %-20s %s\n", name, maskIP(server.Host), server.Desc)
 		}
 		fmt.Println("")
+
+		// 新增：显示可用环境列表
+		if len(config.Environments.Envs) > 0 {
+			fmt.Println("Available environments:")
+			fmt.Println("")
+			// 显示当前激活的环境
+			currentEnv := config.Environments.Current
+			if currentEnv == "" {
+				currentEnv = "default"
+			}
+			fmt.Printf("  Current: %s\n", currentEnv)
+
+			// 列出所有可用环境
+			for name, env := range config.Environments.Envs {
+				desc := env.Desc
+				if desc == "" {
+					desc = "No description"
+				}
+
+				// 标记当前激活的环境
+				indicator := " "
+				if name == currentEnv {
+					indicator = "*"
+				}
+
+				fmt.Printf("  %s %-10s %s\n", indicator, name, desc)
+			}
+			fmt.Println("")
+		}
+
 		os.Exit(1)
+	}
+
+	// 处理环境切换命令
+	if len(os.Args) == 3 && os.Args[2] == "e" {
+		envName := os.Args[1]
+		if err := switchEnvironment(envName, config); err != nil {
+			log.Fatalf("Failed to switch environment: %v", err)
+		}
+		return
 	}
 
 	section := os.Args[1]
