@@ -30,6 +30,7 @@ const (
 // 环境配置结构
 type EnvConfig struct {
 	SSHHome   string `yaml:"ssh_home"`
+	M2Config  string `yaml:"m2_config"`
 	GitConfig string `yaml:"git_config"`
 	Desc      string `yaml:"desc"`
 }
@@ -458,22 +459,23 @@ func switchEnvironment(envName string, config *Config) error {
 		return fmt.Errorf("Environment '%s' not defined in config", envName)
 	}
 
-	// 展开路径中的波浪号
 	sshHome := newEnvConfig.SSHHome
+	m2Config := newEnvConfig.M2Config
 	gitConfig := newEnvConfig.GitConfig
 
 	// 备份当前配置
-	if err := backupCurrentConfig(sshHome, gitConfig, currentEnv); err != nil {
+	if err := backupCurrentConfig(sshHome, m2Config, gitConfig, currentEnv); err != nil {
 		return err
 	}
 
 	// 检查新环境配置文件是否存在
 	sshSrc := filepath.Join("/etc/sc", "ssh."+envName)
+	m2Src := filepath.Join("/etc/sc", "m2.settings."+envName)
 	gitSrc := filepath.Join("/etc/sc", "gitconfig."+envName)
 
-	if !fileExists(sshSrc) || !fileExists(gitSrc) {
+	if !fileExists(sshSrc) || !fileExists(m2Src) || !fileExists(gitSrc) {
 		// 回滚并退出
-		if err := restoreFromBackup(sshHome, gitConfig, currentEnv); err != nil {
+		if err := restoreFromBackup(sshHome, m2Config, gitConfig, currentEnv); err != nil {
 			fmt.Printf("Warning: Failed to restore backup: %v\n", err)
 		}
 		return fmt.Errorf("Missing required environment files: ssh.%s or gitconfig.%s", envName, envName)
@@ -486,6 +488,10 @@ func switchEnvironment(envName string, config *Config) error {
 
 	if err := copyDir(sshSrc, sshHome); err != nil {
 		return fmt.Errorf("Failed to copy SSH config: %v", err)
+	}
+
+	if err := copyFile(m2Src, m2Config); err != nil {
+		return fmt.Errorf("Failed to copy m2 config: %v", err)
 	}
 
 	if err := copyFile(gitSrc, gitConfig); err != nil {
@@ -503,7 +509,7 @@ func switchEnvironment(envName string, config *Config) error {
 }
 
 // 备份当前配置
-func backupCurrentConfig(sshHome, gitConfig, currentEnv string) error {
+func backupCurrentConfig(sshHome, m2Config, gitConfig, currentEnv string) error {
 	knownHostsPath := filepath.Join(sshHome, "known_hosts")
 	knownHostsBackup := filepath.Join("/etc/sc/"+"ssh."+currentEnv, "known_hosts")
 
@@ -517,8 +523,9 @@ func backupCurrentConfig(sshHome, gitConfig, currentEnv string) error {
 }
 
 // 从备份恢复
-func restoreFromBackup(sshHome, gitConfig, currentEnv string) error {
+func restoreFromBackup(sshHome, m2Config, gitConfig, currentEnv string) error {
 	sshBackup := filepath.Join("/etc/sc", "ssh."+currentEnv)
+	m2Backup := filepath.Join("/etc/sc", "m2.settings."+currentEnv)
 	gitBackup := filepath.Join("/etc/sc", "gitconfig."+currentEnv)
 
 	if fileExists(sshBackup) {
@@ -526,6 +533,12 @@ func restoreFromBackup(sshHome, gitConfig, currentEnv string) error {
 			return err
 		}
 		if err := copyDir(sshBackup, sshHome); err != nil {
+			return err
+		}
+	}
+
+	if fileExists(m2Backup) {
+		if err := copyFile(m2Backup, m2Config); err != nil {
 			return err
 		}
 	}

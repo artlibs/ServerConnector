@@ -6,8 +6,9 @@ environments:
   current: "default"
   envs:
     f:
-      ssh_home: /User/home/.ssh
-      git_config: /User/home/.gitconfig
+      ssh_home: /User/Fury/.ssh
+      git_config: /User/Fury/.gitconfig
+      m2_config: /User/Fury/.m2/settings.xml
       desc: "开发环境配置" 
 
 # 服务器配置
